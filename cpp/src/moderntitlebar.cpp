@@ -13,6 +13,40 @@ void mtb::ModernTitleBar::_enter_tree()
 	auto* ds = DisplayServer::get_singleton();
 	auto* loader = ResourceLoader::get_singleton();
 
+	// Resolve the 4.8 editor controls before changing the tree.
+	_editor_window = get_tree()->get_root();
+	_editor_node = _editor_window->get_child(0);
+	_editor_base_control = Object::cast_to<Panel>(EditorInterface::get_singleton()->get_base_control());
+	ERR_FAIL_NULL(_editor_base_control);
+	_editor_main_vbox = Object::cast_to<VBoxContainer>(_editor_base_control->find_child("*VBoxContainer*", true, false));
+	ERR_FAIL_NULL(_editor_main_vbox);
+	_editor_title_bar = Object::cast_to<Control>(_editor_base_control->find_child("*EditorTitleBar*", true, false));
+	ERR_FAIL_NULL(_editor_title_bar);
+	_editor_menu_bar = Object::cast_to<MenuBar>(_editor_title_bar->find_child("*MenuBar*", true, false));
+	ERR_FAIL_NULL(_editor_menu_bar);
+	_editor_run_bar = Object::cast_to<Control>(_editor_title_bar->find_child("*EditorRunBar*", true, false));
+	ERR_FAIL_NULL(_editor_run_bar);
+	_editor_run_bar_panel = Object::cast_to<PanelContainer>(_editor_run_bar->find_child("*PanelContainer*", true, false));
+	ERR_FAIL_NULL(_editor_run_bar_panel);
+	_editor_main_screen = Object::cast_to<TabContainer>(_editor_base_control->find_child("*EditorMainScreen*", true, false));
+	ERR_FAIL_NULL(_editor_main_screen);
+	_editor_main_screen_tabs = _editor_main_screen->get_tab_bar();
+	ERR_FAIL_NULL(_editor_main_screen_tabs);
+	_editor_main_screen_tabs_hbox = Object::cast_to<HBoxContainer>(_editor_main_screen_tabs->get_parent());
+	ERR_FAIL_NULL(_editor_main_screen_tabs_hbox);
+	ERR_FAIL_COND(_editor_main_screen_tabs_hbox->get_parent() != _editor_title_bar);
+	_editor_scene_tabs = Object::cast_to<Control>(_editor_base_control->find_child("*EditorSceneTabs*", true, false));
+	ERR_FAIL_NULL(_editor_scene_tabs);
+	_editor_scene_tabs_hbox = Object::cast_to<HBoxContainer>(_editor_scene_tabs->find_child("*HBoxContainer*", true, false));
+	ERR_FAIL_NULL(_editor_scene_tabs_hbox);
+	_editor_render_buttons_hbox = Object::cast_to<HBoxContainer>(_editor_title_bar->get_child(5));
+	ERR_FAIL_NULL(_editor_render_buttons_hbox);
+	_editor_render_mode_option_button = Object::cast_to<OptionButton>(_editor_render_buttons_hbox->get_child(0));
+	ERR_FAIL_NULL(_editor_render_mode_option_button);
+	_editor_update_spinner = Object::cast_to<MenuButton>(_editor_render_buttons_hbox->get_child(1));
+	ERR_FAIL_NULL(_editor_update_spinner);
+	_editor_title_bar_children = _editor_title_bar->get_children();
+
 	// Windows DPI is 96 at 100% scaling
 	calculate_screen_scale();
 
@@ -56,22 +90,6 @@ void mtb::ModernTitleBar::_enter_tree()
 	_close_button->add_theme_font_size_override("font_size", buttonFontSize);
 	_window_buttons_hbox->add_theme_constant_override("separation", scale_int(1));
 
-	// Get handles to editor control nodes
-	_editor_window = get_tree()->get_root();
-	_editor_node = _editor_window->get_child(0);
-	_editor_base_control = Object::cast_to<Panel>(EditorInterface::get_singleton()->get_base_control());
-	_editor_main_vbox = Object::cast_to<VBoxContainer>(_editor_base_control->get_child(0));
-	_editor_title_bar = Object::cast_to<Control>(_editor_base_control->find_child("*EditorTitleBar*", true, false));
-	_editor_menu_bar = Object::cast_to<MenuBar>(_editor_title_bar->find_child("*MenuBar*", true, false));
-	_editor_run_bar = Object::cast_to<Control>(_editor_title_bar->find_child("*EditorRunBar*", true, false));
-	_editor_run_bar_panel = Object::cast_to<PanelContainer>(_editor_run_bar->find_child("*PanelContainer*", true, false));
-	_editor_main_screen_buttons = Object::cast_to<HBoxContainer>(_editor_title_bar->find_child("*EditorMainScreenButtons*", true, false));
-	_editor_scene_tabs = Object::cast_to<Control>(_editor_base_control->find_child("*EditorSceneTabs*", true, false));
-	_editor_scene_tabs_hbox = Object::cast_to<HBoxContainer>(_editor_scene_tabs->find_child("*HBoxContainer*", true, false));
-	_editor_render_buttons_hbox = Object::cast_to<HBoxContainer>(_editor_title_bar->get_child(5));
-	_editor_render_mode_option_button = Object::cast_to<OptionButton>(_editor_render_buttons_hbox->get_child(0));
-	_editor_update_spinner = Object::cast_to<MenuButton>(_editor_render_buttons_hbox->get_child(1));
-
 	// Listen to window size changed
 	_editor_window->connect("size_changed", Callable(this, "_on_window_size_changed"));
 
@@ -79,7 +97,9 @@ void mtb::ModernTitleBar::_enter_tree()
 	_editor_main_vbox->add_child(_modern_titlebar);
 	_editor_main_vbox->move_child(_modern_titlebar, 0);
 	_editor_base_control->add_child(_window_buttons);
-	_editor_base_control->move_child(_window_buttons, 1);
+	// Keep the buttons above the main VBox's full-width drag area. In 4.8,
+	// EditorIconManager precedes the VBox, so a fixed index of 1 puts them behind it.
+	_editor_base_control->move_child(_window_buttons, _editor_main_vbox->get_index() + 1);
 
 
 	// Create plugin styling
@@ -103,7 +123,7 @@ void mtb::ModernTitleBar::_enter_tree()
 	godotIcon.ptr()->set_base_scale(godotIcon.ptr()->get_base_scale() * _screen_scale);
 
 	// Apply changes to editor controls
-	apply_main_screen_buttons_changes();
+	apply_main_screen_tabs_changes();
 	apply_editor_run_bar_changes();
 	apply_editor_menu_bar_changes();
 	apply_editor_popup_menu_style_changes();
@@ -132,13 +152,30 @@ void mtb::ModernTitleBar::_enter_tree()
 
 void mtb::ModernTitleBar::_exit_tree()
 {
+	if (!_enabled)
+	{
+		return;
+	}
 	_enabled = false;
+	_editor_window->disconnect("size_changed", Callable(this, "_on_window_size_changed"));
+	get_tree()->disconnect("node_added", Callable(this, "_on_scene_tree_node_added"));
+	_editor_title_bar->disconnect("child_entered_tree", Callable(this, "_on_editor_toolbar_node_added"));
 
 	revert_editor_titlebar_changes();
 	revert_editor_popup_menu_style_changes();
 	revert_editor_menu_bar_changes();
-	revert_main_screen_buttons_changes();
+	revert_main_screen_tabs_changes();
 	revert_editor_run_bar_changes();
+	int child_index = 0;
+	for (int i = 0; i < _editor_title_bar_children.size(); i++)
+	{
+		auto* child = Object::cast_to<Node>(_editor_title_bar_children[i]);
+		if (child && child->get_parent() == _editor_title_bar)
+		{
+			_editor_title_bar->move_child(child, child_index++);
+		}
+	}
+	_editor_title_bar_children.clear();
 
 	_editor_main_vbox->remove_child(_modern_titlebar);
 	_modern_titlebar->queue_free();
@@ -152,7 +189,7 @@ void mtb::ModernTitleBar::_exit_tree()
 
 void mtb::ModernTitleBar::_process(double delta)
 {
-	if (_editor_window->get_mode() == Window::MODE_MINIMIZED)
+	if (!_enabled || _editor_window->get_mode() == Window::MODE_MINIMIZED)
 	{
 		return;
 	}
@@ -178,7 +215,7 @@ void mtb::ModernTitleBar::_process(double delta)
 
 void mtb::ModernTitleBar::_notification(int what)
 {
-	if (what == NOTIFICATION_WM_POSITION_CHANGED)
+	if (_enabled && what == NOTIFICATION_WM_POSITION_CHANGED)
 	{
 		calculate_screen_scale();
 		_on_window_size_changed();
@@ -234,21 +271,6 @@ void mtb::ModernTitleBar::_on_drag_pressed()
 	_editor_window->start_drag();
 }
 
-void mtb::ModernTitleBar::_on_editor_scene_button_child_entered_tree(Node* child)
-{
-	// Support editor plugins that implement main screens that are enabled after this plugin
-
-	auto button = Object::cast_to<Button>(child);
-	if (!button)
-	{
-		return;
-	}
-
-	button->add_theme_font_size_override("font_size", 1);
-	button->add_theme_font_override("font", _blank_font);
-	button->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-}
-
 void mtb::ModernTitleBar::_on_drag_gui_input(InputEvent* event)
 {
 	auto mouse = Object::cast_to<InputEventMouseButton>(event);
@@ -295,19 +317,32 @@ void mtb::ModernTitleBar::_on_scene_tree_node_added(Node* node)
 
 void mtb::ModernTitleBar::_on_editor_toolbar_node_added(Node* node)
 {
-	if (!_enabled)
+	if (!_enabled || !Object::cast_to<Control>(node))
 	{
 		return;
 	}
 
+	// Wait until the editor/plugin has finished adding the control.
+	call_deferred("_move_editor_toolbar_control", node);
+}
+
+void mtb::ModernTitleBar::_move_editor_toolbar_control(Node* node)
+{
+	if (!_enabled || !node || node->get_parent() != _editor_title_bar)
+	{
+		return;
+	}
+	node->reparent(_editor_toolbar, false);
 	auto button = Object::cast_to<Button>(node);
-
-	if (!button)
+	if (button)
 	{
-		return;
+		style_custom_window_button(button);
 	}
-
-	style_custom_window_button(button);
+	auto buttons = node->find_children("*", "Button", true, false);
+	for (int i = 0; i < buttons.size(); i++)
+	{
+		style_custom_window_button(Object::cast_to<Button>(buttons[i]));
+	}
 }
 
 void mtb::ModernTitleBar::create_plugin_styleboxes()
@@ -342,55 +377,64 @@ void mtb::ModernTitleBar::create_plugin_styleboxes()
 	_popup_separator_style.ptr()->set_border_width(SIDE_TOP, scale_int(1));
 }
 
-void mtb::ModernTitleBar::apply_main_screen_buttons_changes()
+void mtb::ModernTitleBar::apply_main_screen_tabs_changes()
 {
-	// Move the main screen buttons to the editor scene tabs control and hide their text
-	_editor_title_bar->remove_child(_editor_main_screen_buttons);
-	_editor_scene_tabs_hbox->add_child(_editor_main_screen_buttons);
-	_editor_scene_tabs_hbox->move_child(_editor_main_screen_buttons, 3);
+	// Move the dock's entire header so its TabBar and popup button stay together.
+	_editor_main_screen_tabs_index = _editor_main_screen_tabs_hbox->get_index();
+	_editor_main_screen_tabs_hbox->reparent(_editor_scene_tabs_hbox, false);
+	_editor_scene_tabs_hbox->move_child(_editor_main_screen_tabs_hbox, 3);
 
-	auto children = _editor_main_screen_buttons->get_children();
-
-	for (int i = 0; i < children.size(); i++)
+	_main_screen_theme_overrides.clear();
+	if (_editor_main_screen->has_theme_font_override("font"))
 	{
-		Button* button = Object::cast_to<Button>(children[i]);
-		if (!button)
-		{
-			continue;
-		}
-		button->add_theme_font_size_override("font_size", 1);
-		button->add_theme_font_override("font", _blank_font);
-		button->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+		_main_screen_theme_overrides["font"] = _editor_main_screen->get_theme_font("font");
+	}
+	if (_editor_main_screen->has_theme_font_size_override("font_size"))
+	{
+		_main_screen_theme_overrides["font_size"] = _editor_main_screen->get_theme_font_size("font_size");
+	}
+	if (_editor_main_screen->has_theme_constant_override("icon_separation"))
+	{
+		_main_screen_theme_overrides["icon_separation"] = _editor_main_screen->get_theme_constant("icon_separation");
 	}
 
-	_editor_main_screen_buttons->add_theme_constant_override("separation", 0);
-	_editor_main_screen_buttons->connect("child_entered_tree", Callable(this, "_on_editor_scene_button_child_entered_tree"));
+	// TabContainer forwards these overrides to its TabBar, including after theme
+	// changes. Titles remain intact for tooltips, selection and new dock tabs.
+	_editor_main_screen->add_theme_font_override("font", _blank_font);
+	_editor_main_screen->add_theme_font_size_override("font_size", 1);
+	_editor_main_screen->add_theme_constant_override("icon_separation", 0);
 }
 
-void mtb::ModernTitleBar::revert_main_screen_buttons_changes()
+void mtb::ModernTitleBar::revert_main_screen_tabs_changes()
 {
-	_editor_main_screen_buttons->remove_theme_constant_override("separation");
+	_editor_main_screen_tabs_hbox->reparent(_editor_title_bar, false);
+	_editor_title_bar->move_child(_editor_main_screen_tabs_hbox, _editor_main_screen_tabs_index);
 
-	// Move the main screen buttons back to the editor titlebar and restore their text
-
-	_editor_scene_tabs_hbox->remove_child(_editor_main_screen_buttons);
-	_editor_title_bar->add_child(_editor_main_screen_buttons);
-	_editor_title_bar->move_child(_editor_main_screen_buttons, 2);
-
-	auto children = _editor_main_screen_buttons->get_children();
-
-	for (int i = 0; i < children.size(); i++)
+	if (_main_screen_theme_overrides.has("font"))
 	{
-		auto button = Object::cast_to<Button>(children[i]);
-		if (!button)
-		{
-			continue;
-		}
-
-		button->remove_theme_font_size_override("font_size");
-		button->remove_theme_font_override("font");
-		button->set_icon_alignment(HORIZONTAL_ALIGNMENT_LEFT);
+		_editor_main_screen->add_theme_font_override("font", _main_screen_theme_overrides["font"]);
 	}
+	else
+	{
+		_editor_main_screen->remove_theme_font_override("font");
+	}
+	if (_main_screen_theme_overrides.has("font_size"))
+	{
+		_editor_main_screen->add_theme_font_size_override("font_size", _main_screen_theme_overrides["font_size"]);
+	}
+	else
+	{
+		_editor_main_screen->remove_theme_font_size_override("font_size");
+	}
+	if (_main_screen_theme_overrides.has("icon_separation"))
+	{
+		_editor_main_screen->add_theme_constant_override("icon_separation", _main_screen_theme_overrides["icon_separation"]);
+	}
+	else
+	{
+		_editor_main_screen->remove_theme_constant_override("icon_separation");
+	}
+	_main_screen_theme_overrides.clear();
 }
 
 void mtb::ModernTitleBar::apply_editor_run_bar_changes()
@@ -544,16 +588,26 @@ void mtb::ModernTitleBar::apply_editor_titlebar_changes()
 	// Add to decorations
 	_render_buttons_hbox->add_child(_editor_render_buttons_hbox);
 
-	// Chuck the entire remainder of the editor titlebar into the custom window decorations, to support toolbar plugins
-	_editor_main_vbox->remove_child(_editor_title_bar);
-	_custom_window_buttons_hbox->add_child(_editor_title_bar);
-
-	// Match window button separation
-	_editor_title_bar->add_theme_constant_override("separation", scale_int(1));
+	// Keep the native titlebar in its original parent. Reparenting it changes
+	// destruction order and can destroy the dock's TabBar before its TabContainer.
+	_editor_title_bar_was_visible = _editor_title_bar->is_visible();
+	_editor_toolbar = memnew(HBoxContainer);
+	_editor_toolbar->add_theme_constant_override("separation", scale_int(1));
+	_custom_window_buttons_hbox->add_child(_editor_toolbar);
+	auto controls = _editor_title_bar->get_children();
+	for (int i = 0; i < controls.size(); i++)
+	{
+		auto* control = Object::cast_to<Control>(controls[i]);
+		if (control)
+		{
+			control->reparent(_editor_toolbar, false);
+		}
+	}
+	_editor_title_bar->hide();
 
 	// Style any toolbar plugin buttons
 
-	auto buttons = _editor_title_bar->find_children("*", "Button", true, false);
+	auto buttons = _editor_toolbar->find_children("*", "Button", true, false);
 
 	for (int i = 0; i < buttons.size(); i++)
 	{
@@ -596,7 +650,6 @@ void mtb::ModernTitleBar::revert_editor_titlebar_changes()
 
 	// Add it back to the titlebar
 	_editor_title_bar->add_child(_editor_render_buttons_hbox);
-	_editor_title_bar->move_child(_editor_render_buttons_hbox, 2);
 
 	// Unswap the button order
 	_editor_render_buttons_hbox->move_child(_editor_update_spinner, 1);
@@ -607,16 +660,8 @@ void mtb::ModernTitleBar::revert_editor_titlebar_changes()
 	revert_custom_window_button_styling(_editor_update_spinner);
 
 
-	// Put the titlebar back
-	_custom_window_buttons_hbox->remove_child(_editor_title_bar);
-	_editor_main_vbox->add_child(_editor_title_bar);
-	_editor_main_vbox->move_child(_editor_title_bar, 0);
-
-	// Remove button styling
-
-	_editor_title_bar->remove_theme_constant_override("separation");
-
-	auto buttons = _editor_title_bar->find_children("*", "Button", true, false);
+	// Restore toolbar controls before returning the rest of the native titlebar.
+	auto buttons = _editor_toolbar->find_children("*", "Button", true, false);
 
 	for (int i = 0; i < buttons.size(); i++)
 	{
@@ -628,6 +673,17 @@ void mtb::ModernTitleBar::revert_editor_titlebar_changes()
 
 		revert_custom_window_button_styling(button);
 	}
+	auto controls = _editor_toolbar->get_children();
+	for (int i = 0; i < controls.size(); i++)
+	{
+		auto* control = Object::cast_to<Node>(controls[i]);
+		control->reparent(_editor_title_bar, false);
+	}
+	_custom_window_buttons_hbox->remove_child(_editor_toolbar);
+	_editor_toolbar->queue_free();
+	_editor_toolbar = nullptr;
+	_editor_title_bar->move_child(_editor_render_buttons_hbox, 2);
+	_editor_title_bar->set_visible(_editor_title_bar_was_visible);
 
 	// Revert render mode options button custom styling
 
@@ -780,5 +836,5 @@ void mtb::ModernTitleBar::_bind_methods()
 	ClassDB::bind_method(D_METHOD("_on_window_size_changed"),&mtb::ModernTitleBar::_on_window_size_changed);
 	ClassDB::bind_method(D_METHOD("_on_scene_tree_node_added", "node"), &mtb::ModernTitleBar::_on_scene_tree_node_added);
 	ClassDB::bind_method(D_METHOD("_on_editor_toolbar_node_added", "node"), &mtb::ModernTitleBar::_on_editor_toolbar_node_added);
-	ClassDB::bind_method(D_METHOD("_on_editor_scene_button_child_entered_tree", "child"), &mtb::ModernTitleBar::_on_editor_scene_button_child_entered_tree);
+	ClassDB::bind_method(D_METHOD("_move_editor_toolbar_control", "node"), &mtb::ModernTitleBar::_move_editor_toolbar_control);
 }

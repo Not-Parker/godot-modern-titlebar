@@ -31,6 +31,9 @@
 #include <godot_cpp/classes/image_texture.hpp>
 #include <godot_cpp/classes/menu_button.hpp>
 #include <godot_cpp/classes/theme.hpp>
+#include <godot_cpp/classes/tab_bar.hpp>
+#include <godot_cpp/classes/tab_container.hpp>
+#include <godot_cpp/variant/dictionary.hpp>
 
 using namespace godot;
 
@@ -56,13 +59,13 @@ namespace mtb
 		void _on_maximise_pressed();
 		void _on_close_pressed();
 		void _on_drag_pressed();
-		void _on_editor_scene_button_child_entered_tree(Node* child);
 		void _on_drag_gui_input(InputEvent* event);
 		void _on_scene_tree_node_added(Node* node);
 		void _on_editor_toolbar_node_added(Node* node);
+		void _move_editor_toolbar_control(Node* node);
 		void create_plugin_styleboxes();
-		void apply_main_screen_buttons_changes();
-		void revert_main_screen_buttons_changes();
+		void apply_main_screen_tabs_changes();
+		void revert_main_screen_tabs_changes();
 		void apply_editor_run_bar_changes();
 		void revert_editor_run_bar_changes();
 		void apply_editor_run_bar_panel_styling();
@@ -84,7 +87,7 @@ namespace mtb
 		void style_custom_window_button(Button* button);
 		void revert_custom_window_button_styling(Button* button);
 
-		bool _enabled;
+		bool _enabled = false;
 
 		// SIZE / SCALE
 		Vector2 _window_button_size;
@@ -100,6 +103,7 @@ namespace mtb
 		HBoxContainer* _window_buttons_hbox;
 		HBoxContainer* _custom_window_buttons_hbox;
 		HBoxContainer* _render_buttons_hbox;
+		HBoxContainer* _editor_toolbar = nullptr;
 		Button* _minimise_button;
 		Button* _maximise_button;
 		Button* _close_button;
@@ -121,19 +125,25 @@ namespace mtb
 		Ref<DPITexture> _mobile_icon;
 		Ref<DPITexture> _compatibility_icon;
 
-		// A workaround to the fact that the EditorMainScreen's functionality depends extremely heavily on the buttons' names
+		// Hide text while preserving tab titles and toolbar button labels.
 		Ref<FontFile> _blank_font;
 
 		// EDITOR CONTROLS
-		Window* _editor_window;
+		Window* _editor_window = nullptr;
 		Node* _editor_node;
 		VBoxContainer* _editor_main_vbox;
 		Panel* _editor_base_control;
 		Control* _editor_title_bar;
+		bool _editor_title_bar_was_visible;
+		TypedArray<Node> _editor_title_bar_children;
 		MenuBar* _editor_menu_bar;
 		Control* _editor_run_bar;
 		PanelContainer* _editor_run_bar_panel;
-		HBoxContainer* _editor_main_screen_buttons;
+		TabContainer* _editor_main_screen;
+		TabBar* _editor_main_screen_tabs;
+		HBoxContainer* _editor_main_screen_tabs_hbox;
+		int _editor_main_screen_tabs_index;
+		Dictionary _main_screen_theme_overrides;
 		Control* _editor_scene_tabs;
 		HBoxContainer* _editor_scene_tabs_hbox;
 		HBoxContainer* _editor_render_buttons_hbox;

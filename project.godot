@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Modern Titlebar GDExtension"
-config/features=PackedStringArray("4.6", "Forward Plus")
+config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 
 [dotnet]
@@ -20,7 +20,7 @@ project/assembly_name="Modern Titlebar GDExtension"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/moderntitlebar/plugin.cfg")
+enabled=PackedStringArray("res://addons/zylann.editor_debugger/plugin.cfg")
 
 [physics]
 

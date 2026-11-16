@@ -1,6 +1,6 @@
 <h1 align="center">Godot Modern Titlebar</h1>
 
-A modern titlebar redesign for Godot 4.6 written in C++ using GDExtension for Windows 11 and 10.
+A modern titlebar redesign for Godot 4.8 written in C++ using GDExtension for Windows 11 and 10.
 Install by downloading the latest release, adding it to your project and enabling the plugin. 
 Cloning the addon from the repo will not work without building it.
 
